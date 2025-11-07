@@ -6,9 +6,9 @@ Pure JavaScript game logic for a medieval grand strategy game inspired by Mount 
 
 A real-time strategy game where players start as minor nobles and expand through conquest, diplomacy, and political maneuvering. Features 200+ AI lords, territorial control, vassal systems, and wave-based tactical battles across a map spanning England to Pakistan.
 
-## Current Status: Session 1 Complete ✓
+## Current Status: Session 2 Complete ✓
 
-### Session 1 Deliverables
+### Session 1 Deliverables (Complete)
 
 **1. Settlement Database** (`data/settlements.json`)
 - 250 historically-accurate settlements covering England to Pakistan
@@ -64,6 +64,60 @@ A real-time strategy game where players start as minor nobles and expand through
   - `findSettlementsInRadius`: <1ms per call
   - `getTerrainCost`: <0.001ms per call
 
+### Session 2 Deliverables (Complete)
+
+**1. Army Movement System** (`systems/movement.js`)
+- Complete army entity structure
+  - Position, destination, troops, morale
+  - Movement state tracking (isMoving, inBattle)
+  - Path and pathIndex for waypoint following
+- Army management functions:
+  - `createArmy(owner, position, troops, morale)` - Create new army
+  - `getArmy(id)`, `getAllArmies()`, `getArmiesByOwner(owner)`
+  - `removeArmy(id)` - Disband army
+  - `getTroopCount(army)`, `getAverageTroopQuality(army)`
+
+**2. A* Pathfinding Algorithm**
+- Full A* implementation with terrain cost consideration
+- 8-directional movement (cardinal + diagonal with √2 cost)
+- Heuristic optimization (Manhattan distance)
+- Open/closed set tracking with fScore
+- Handles impassable terrain (returns null if no path)
+- Returns waypoint array from start to destination
+
+**3. Movement Update System**
+- `updateMovement(deltaTime)` - Updates all armies
+- Terrain-based speed modification:
+  - Base speed: 50 pixels per game-day
+  - Effective speed = base speed / terrain cost
+  - Plains (1.0x), Forest (1.5x), Mountains (2.0x)
+- Waypoint following with smooth interpolation
+- Arrival detection (stops within 5 pixels)
+- Automatic path progression
+
+**4. Spatial Queries**
+- `getArmiesInRadius(x, y, radius)` - Find armies near point
+- Results sorted by distance (closest first)
+- `getDistanceBetweenArmies(id1, id2)` - Calculate distance
+- `getMovementStatistics()` - Army/troop counts
+
+**5. Test Suite** (`tests/session2-tests.js`)
+- 43 comprehensive tests, all passing ✓
+- Test categories:
+  - Army creation & management (13 tests)
+  - Basic movement (7 tests)
+  - Pathfinding (6 tests)
+  - Terrain speed (2 tests)
+  - Spatial queries (6 tests)
+  - Obstacle avoidance (2 tests)
+  - Statistics (3 tests)
+  - Performance (4 tests)
+- Performance results:
+  - Pathfinding: ~11ms per path
+  - Movement update: 0.02ms per update (50 armies)
+  - Spatial queries: 0.01ms per query
+  - ✓ All targets met for 60 FPS with 200+ armies
+
 ## Architecture
 
 ```
@@ -76,10 +130,12 @@ A real-time strategy game where players start as minor nobles and expand through
   /state
     queries.js              - Data access layer
 
-  /systems                  - (Future: movement, battle, economy, AI)
+  /systems
+    movement.js             - Army movement and A* pathfinding
 
   /tests
     session1-tests.js       - Test suite for Session 1
+    session2-tests.js       - Test suite for Session 2
 
   DESIGN.md                 - Complete game vision and roadmap
   README.md                 - This file
@@ -96,10 +152,13 @@ A real-time strategy game where players start as minor nobles and expand through
 ## Running Tests
 
 ```bash
-# From project root
+# Session 1: Foundation tests
 node game-logic/tests/session1-tests.js
+# Expected: 43/43 tests passing
 
-# Expected output: 43/43 tests passing
+# Session 2: Army movement tests
+node game-logic/tests/session2-tests.js
+# Expected: 43/43 tests passing
 ```
 
 ## Generating Terrain
@@ -111,15 +170,15 @@ node generateTerrain.js
 # Outputs: terrain.json with 100×200 grid
 ```
 
-## Next Steps: Session 2 - Army Movement
+## Next Steps: Session 3 - Settlement Interaction
 
 ### Planned Features:
-- Army entity structure (position, destination, troops, morale)
-- A* pathfinding using terrain grid
-- Continuous pixel-based movement
-- Movement update loop
-- Army spatial queries
-- Collision detection
+- Recruitment system (add troops at settlements)
+- Recruitment cooldown (7 game-days)
+- Siege mechanics (capture settlements)
+- Siege timer based on fortification
+- Ownership transfer (settlements + villages)
+- Proximity detection (10 pixel radius)
 
 See `DESIGN.md` for complete 8-session development roadmap.
 
@@ -135,6 +194,9 @@ See `DESIGN.md` for complete 8-session development roadmap.
 
 ```javascript
 const queries = require('./state/queries');
+const movement = require('./systems/movement');
+
+// === Session 1: Settlement & Terrain Queries ===
 
 // Get a specific settlement
 const london = queries.getSettlement('london_001');
@@ -152,15 +214,38 @@ console.log(`Movement cost: ${cost}x`); // 1.0, 1.5, 2.0, or 999
 const englandSettlements = queries.getSettlementsByOwner('england');
 console.log(`England owns ${englandSettlements.length} settlements`);
 
-// Get database statistics
-const stats = queries.getStatistics();
-console.log(stats.settlements.total); // 250
+// === Session 2: Army Movement ===
+
+// Create an army at London
+const army = movement.createArmy('lord_edmund', london.coordinates, [
+  {type: 'infantry', count: 100, quality: 75},
+  {type: 'archers', count: 50, quality: 70}
+], 85); // morale
+
+console.log(`Created army ${army.id} with ${movement.getTroopCount(army)} troops`);
+
+// Set destination (automatically calculates path)
+const paris = queries.getSettlement('paris_018');
+movement.setDestination(army.id, paris.coordinates.x, paris.coordinates.y);
+
+// Update movement (0.1 game-days)
+movement.updateMovement(0.1);
+
+console.log(`Army moved to (${army.position.x}, ${army.position.y})`);
+
+// Find nearby armies
+const nearbyArmies = movement.getArmiesInRadius(london.coordinates.x, london.coordinates.y, 200);
+console.log(`Found ${nearbyArmies.length} armies near London`);
+
+// Get all armies owned by a lord
+const lordArmies = movement.getArmiesByOwner('lord_edmund');
+console.log(`Lord Edmund controls ${lordArmies.length} armies`);
 ```
 
 ## Version History
 
-- **Session 1** (Current) - Foundation: Settlement database, terrain grid, query functions
-- **Session 2** (Planned) - Army Movement: Pathfinding and continuous movement
+- **Session 1** (Complete) - Foundation: Settlement database, terrain grid, query functions
+- **Session 2** (Complete) - Army Movement: A* pathfinding, continuous movement, spatial queries
 - **Session 3** (Planned) - Settlement Interaction: Recruitment and sieges
 - **Session 4** (Planned) - AI Lords: Decision-making and scoring
 - **Session 5** (Planned) - Battle System: Wave-based combat
